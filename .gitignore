@@ -130,5 +130,5 @@ dist
 .pnp.*
 
 # internal files
-token.txt
+github-auth.txt
 upwork-app-info.txt
