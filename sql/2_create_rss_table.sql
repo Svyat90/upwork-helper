@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS rss (
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	user_id INT,
+	link VARCHAR(2048) NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	payload JSON
+);
+
+ALTER TABLE rss ADD INDEX rss_user_id (user_id);
+ALTER TABLE rss ADD FOREIGN KEY (user_id) REFERENCES users(user_id);
