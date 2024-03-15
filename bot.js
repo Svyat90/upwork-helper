@@ -1,5 +1,6 @@
 const { configDotEnv } = require('dotenv').config();
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf, Markup, session } = require('telegraf');
+const { message } = require("telegraf/filters");
 const axios = require('axios');
 const xml2js = require('xml2js');
 const moment = require('moment');
@@ -16,9 +17,18 @@ const dbConfig = {
 const pool = mysql.createPool(dbConfig);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// Initialize session middleware
+bot.use(session({ defaultSession: () => ({ state: undefined }) }));
+
 const menu = Markup.keyboard([
   ['View RSS list', 'Add new RSS'],
+  ['Help', 'Feedback',],
 ]).oneTime().resize();
+
+// Middleware to run while every message
+// bot.use(async (ctx, next) => {
+//   return next();
+// });
 
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
@@ -27,27 +37,34 @@ bot.start(async (ctx) => {
   
   console.log('chat#' + chatId + ' started. user#' + userId);
 
-  await saveUserData(userId, chatId, username, ctx.chat);
-
-  ctx.reply('Welcome! Select an option from the menu:', menu);
+  await saveUserData(userId, chatId, username, ctx);
+  await ctx.reply('Welcome! Select an option from the menu:', menu);
 });
 
-bot.hears('Add new RSS', (ctx) => {
-  ctx.reply('Enter your RSS link')
+bot.hears('Help', async (ctx) => {
+  await ctx.reply(`
+Hi there!
+I'm a tool built to assist you in tracking new job postings on Upwork. Simply provide me with the web addresses (URLs) of your Upwork job feeds, and I'll notify you as soon as new jobs are posted. Enhance your job search efficiency and increase your chances of getting hired 💸.
   
-  bot.on('text', async (ctx) => {
-    const rssLink = ctx.message.text;
-    
-    try {
-      const userId = ctx.from.id;
-      await saveUserRSS(userId, rssLink, ctx.message)
+Feeds:
+/add - Adds your feed to the monitoring list.
+/list - View and manage saved feeds.
+  
+Other:
+/help - View this message.
+/feedback - Send feedback.
+/start - Start the bot.
 
-      ctx.reply('RSS link added successfully!');
-    } catch (error) {
-      console.error('Error inserting RSS link into the database:', error);
-      ctx.reply('Error adding RSS link. Please try again.');
-    }
-  });
+For assistance:
+@dev2078 - Reach out for help or any queries.
+
+If you have feedback, please use the /feedback command to let me know how I can improve!
+`);
+});
+
+bot.hears('Add new RSS', async (ctx) => {
+  ctx.session.state = 'waitingForLink';
+  await ctx.reply('Please enter the RSS link:')
 });
 
 bot.hears('View RSS list', async (ctx) => {
@@ -57,25 +74,27 @@ bot.hears('View RSS list', async (ctx) => {
     const rssData = await getRssData(userId);
 
     if (rssData.length === 0) {
-      ctx.reply('No RSS links found for your account.');
+      await ctx.reply('No RSS links found for your account.');
     } else {
       const formattedRssList = rssData.map((rss) => `#${rss.id} - ${rss.link}`).join('\n');
-      ctx.reply('Your RSS links:\n' + formattedRssList);
+      await ctx.reply('Your RSS links:\n' + formattedRssList);
     }
+
   } catch (error) {
-    ctx.reply('Error fetching RSS links. Please try again.');
+    await ctx.reply('Error fetching RSS links. Please try again.');
   }
 });
 
 bot.hears('/parse', () => parseRSS());
-bot.hears('/user', async (ctx) => {
+
+bot.hears('User Data', async (ctx) => {
   const userId = ctx.from.id;
   const userData = await getUserData(userId);
 
   if (userData) {
-    ctx.reply(`User ID: ${userData.user_id}, Username: ${userData.username}`);
+    await ctx.reply(`User ID: ${userData.user_id}, Username: ${userData.username}`);
   } else {
-    ctx.reply('User data not found.');
+    await ctx.reply('User not found.');
   }
 });
 
@@ -86,10 +105,8 @@ setInterval(() => parseRSS(), 15000);
 async function parseRSS() {
   try {
     const rssData = await getAllRss();
-
+    
     rssData.forEach(async (rss) => {
-      console.log(`rss#${rss.id} processed at: ` + moment().format('Y-MM-DD HH:mm:ss'));
-
       const response = await axios.get(rss.link);
       const xmlData = response.data;
 
@@ -99,6 +116,7 @@ async function parseRSS() {
         const isOfferUnique = await isUniqueOffer(item, rss.user_id, rss.chat_id);
 
         if (isOfferUnique) {
+          console.log(`--- rss#${rss.id} new offer at ${moment().format('Y-MM-DD HH:mm:ss')} - ${item.title}`);
           const message = createMessage(item);
           const truncatedMessage = message.substring(0, 4096);
           await saveOfferToDatabase(item, truncatedMessage, rss.user_id, rss.chat_id);
@@ -225,13 +243,16 @@ async function saveOfferToDatabase(offerData, truncatedMessage, userId, chatId) 
 
 function createMessage(item) {
   // Decode HTML entities
-  const decodedDescription = he.decode(item.description);
+  let decodedDescription = he.decode(item.description);
+  decodedDescription = decodedDescription.replace(/&amp;quot;/g, '"');
+  
+  const trimmedTitle = he.decode(item.title).replace(' - Upwork', '').trim();
   const { country, budget, clearedDescription } = parseAndClearData(decodedDescription);
   const createdAt = formatDateRelative(item.pubDate);
 
-  let msg = '📢 Title: ' + item.title + '\n';
+  let msg = '📢 Title: ' + trimmedTitle + '\n';
   msg += '💰 Budget: ' + budget + '\n';
-  msg += (country !== null ? '🗺️ Country: ' + country + '\n' : '');
+  msg += (country !== null ? '🗺️ Country: ' + he.decode(country) + '\n' : '');
   msg += '🕒 Created: ' + createdAt + '\n';
   msg += '💬 Description: ' + clearedDescription;
 
@@ -255,6 +276,7 @@ function parseAndClearData(description) {
   const position = description.indexOf('<b>Budget</b>');
 
   // Extract the substring before the position
+  description = description.trim();
   const clearedDescription = position !== -1 ? description.substring(0, position) : description;
 
   return { country, budget, clearedDescription };
@@ -282,14 +304,40 @@ function escapeSpecialCharacters(inputString) {
   const htmlTagsRegex = /<[^>]*>/g;
   const stringWithoutTags = inputString.replace(htmlTagsRegex, '');
 
-  // const specialCharacters = /-[\]{}()*+?.,\\^$|#]/g;
-  const specialCharacters = /[-+)(}_*@{\]\[.><=$|#!]/g;
+  const specialCharacters = /[-+)(}_~*`@{}[\].><=\\$|#!]/g;
   
   return stringWithoutTags.replace(specialCharacters, '\\$&');
 }
 
-bot.on('text', (ctx) => {
-  ctx.reply('Invalid option. Please use the menu.');
+bot.on(message("text"), async (ctx) => {
+  if (ctx.session.state === 'waitingForLink') {    
+    try {
+      const userId = ctx.from.id;
+      const rssLink = ctx.message.text.trim();
+
+      if (isValidUrl(rssLink)) {
+        // Todo need check Upwork URL
+        await saveUserRSS(userId, rssLink, ctx.message)
+        await ctx.reply('RSS link added successfully!');
+      } else {
+        await ctx.reply('Invalid RSS link format. Please enter a valid URL.');
+      }
+
+    } catch (error) {
+      console.error('Error inserting RSS link into the database:', error);
+      await ctx.reply('Error adding RSS link. Please try again.');
+    }
+
+    ctx.session.state = undefined;
+
+  } else {
+    await ctx.reply('Invalid option. Please use the menu: ', menu);
+  }
 });
+
+function isValidUrl(url) {
+  const urlRegex = /^(http|https):\/\/[^ "]+$/;
+  return urlRegex.test(url);
+}
 
 bot.launch();
