@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const { configDotEnv } = require('../util/env');
 
 const dbConfig = {
   host: process.env.DB_HOST,
@@ -17,4 +18,4 @@ const pool = mysql.createPool(dbConfig);
     } catch (error) {
       console.error('Error connecting to the database:', error);
     }
-  })();
+})();
