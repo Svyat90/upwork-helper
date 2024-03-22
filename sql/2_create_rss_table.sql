@@ -8,3 +8,4 @@ CREATE TABLE IF NOT EXISTS rss (
 
 ALTER TABLE rss ADD INDEX rss_user_id (user_id);
 ALTER TABLE rss ADD FOREIGN KEY (user_id) REFERENCES users(user_id);
+ALTER TABLE rss ADD COLUMN title VARCHAR(64);

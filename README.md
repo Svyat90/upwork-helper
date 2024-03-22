@@ -5,11 +5,6 @@
 npm install
 ```
 
-### install database driver
-```bash
-npm install mysql2
-```
-
 ### copy and set .env variables
 ```bash
 cp .env-example .env

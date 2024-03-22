@@ -5,30 +5,31 @@ const { createMessage } = require('../message/messageUtils');
 const moment = require('moment');
 const axios = require('axios');
 
-async function parseRSS(bot) {
+async function parseAllRSS(bot) {
   try {
     const rssData = await getAllRss();
-    
+
     rssData.forEach(async (rss) => {
-      const response = await axios.get(rss.link);
-      const xmlData = response.data;
+      const offers = await parseRSS(rss.link);
+      if (! offers) {
+        console.error(`Error parsing RSS feed: ${rss.link}`, error);
+        return;
+      }
 
-      const result = await xml2js.parseStringPromise(xmlData, { explicitArray: false, mergeAttrs: true });
-
-      for (const item of result.rss.channel.item) {
-        const isOfferUnique = await isUniqueOffer(item, rss.user_id, rss.chat_id);
+      for (const offer of offers) {
+        const isOfferUnique = await isUniqueOffer(offer, rss.user_id, rss.chat_id);
 
         if (isOfferUnique) {
-          console.log(`--- rss#${rss.id} new offer at ${moment().format('Y-MM-DD HH:mm:ss')} - ${item.title}`);
-          const message = createMessage(item);
+          console.log(`--- rss#${rss.id} new offer at ${moment().format('Y-MM-DD HH:mm:ss')} - ${offer.title}`);
+          const message = createMessage(offer);
           const truncatedMessage = message.substring(0, 320) + ' \\.\\.\\.';
-          await saveOfferToDatabase(item, truncatedMessage, rss.user_id, rss.chat_id);
+          await saveOfferToDatabase(offer, truncatedMessage, rss.user_id, rss.chat_id);
 
           bot.telegram.sendMessage(rss.chat_id, truncatedMessage, {
             parse_mode: 'MarkdownV2',
             reply_markup: {
               inline_keyboard: [
-                [{ text: 'Job post', url: item.link }],
+                [{ text: 'Job post', url: offer.link }],
               ],
             },
           });
@@ -37,7 +38,21 @@ async function parseRSS(bot) {
     });
 
   } catch (error) {
+    console.error('Error sending RSS feed:', error);
+  }
+}
+
+async function parseRSS(rssLink) {
+  try {
+      const response = await axios.get(rssLink);
+      const xmlData = response.data;
+      const result = await xml2js.parseStringPromise(xmlData, { explicitArray: false, mergeAttrs: true });
+      
+      return result.rss.channel.item;
+
+  } catch (error) {
     console.error('Error fetching or parsing RSS feed:', error);
+    return null;
   }
 }
 
@@ -63,4 +78,4 @@ async function saveOfferToDatabase(offerData, truncatedMessage, userId, chatId) 
   ]);
 }
 
-module.exports = { parseRSS, isUniqueOffer, saveOfferToDatabase };
+module.exports = { parseAllRSS, parseRSS, isUniqueOffer, saveOfferToDatabase };
