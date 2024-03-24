@@ -13,9 +13,9 @@ nano .env
 
 ### run sql migrations
 ```bash
-mysql -u db_user -p -h db_host db_name < ./sql/1_create_users_table.sql
-mysql -u db_user -p -h db_host db_name < ./sql/2_create_rss_table.sql
-mysql -u db_user -p -h db_host db_name < ./sql/3_create_offers_table.sql
+mysql -u upwork_bot -p -h localhost upwork_bot < ./sql/1_create_users_table.sql
+mysql -u upwork_bot -p -h localhost upwork_bot < ./sql/2_create_rss_table.sql
+mysql -u upwork_bot -p -h localhost upwork_bot < ./sql/3_create_offers_table.sql
 ```
 
 ### run bot

@@ -10,7 +10,7 @@ async function saveRSS(userId, rssLink, rssTitle, payload) {
     ]);
 
   } catch (error) {
-    console.error(`Error saving RSS user#${userId} rss#${rssId}: `, error);
+    console.error(`Error saving RSS user#${userId} rss#${rssLink}: `, error);
   }
 }
 
