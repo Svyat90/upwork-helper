@@ -4,8 +4,9 @@ module.exports = async function help(ctx) {
   I'm a tool built to assist you in tracking new job postings on Upwork. Simply provide me with the web addresses (URLs) of your Upwork job feeds, and I'll notify you as soon as new jobs are posted. Enhance your job search efficiency and increase your chances of getting hired 💸.
     
   Feeds:
+  /list - View saved feeds.
   /add - Adds your feed to the monitoring list.
-  /list - View and manage saved feeds.
+  /delete - Delete feed from monitoring list.
     
   Other:
   /help - View this message.
@@ -17,5 +18,6 @@ module.exports = async function help(ctx) {
   
   If you have feedback, please use the /feedback command to let me know how I can improve!
   `);
+  ctx.session.state = undefined;
 }
   

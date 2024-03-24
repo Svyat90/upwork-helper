@@ -22,7 +22,7 @@ async function parseAllRSS(bot) {
         if (isOfferUnique) {
           console.log(`--- rss#${rss.id} new offer at ${moment().format('Y-MM-DD HH:mm:ss')} - ${offer.title}`);
           const message = createMessage(offer);
-          const truncatedMessage = message.substring(0, 320) + ' \\.\\.\\.';
+          const truncatedMessage = message.substring(0, 320) + '\\.\\.\\.';
           await saveOfferToDatabase(offer, truncatedMessage, rss.user_id, rss.chat_id);
 
           bot.telegram.sendMessage(rss.chat_id, truncatedMessage, {
